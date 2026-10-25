@@ -27,9 +27,11 @@ import com.zyroxlimited.billing.ReplacementMode
 import com.zyroxlimited.billing.UnavailableProduct
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** The only class that touches Play Billing Library types. One BillingClient per process. */
 internal class PlayBillingGateway(
@@ -94,7 +96,7 @@ internal class PlayBillingGateway(
                 },
             )
             .build()
-        return suspendCancellableCoroutine { continuation ->
+        return awaitPlay("Product details query") { continuation ->
             client.queryProductDetailsAsync(params) { result, queryResult ->
                 val value = if (result.responseCode == BillingResponseCode.OK) {
                     val details = queryResult.productDetailsList.orEmpty()
@@ -120,7 +122,7 @@ internal class PlayBillingGateway(
             .setProductType(type.toPlay())
             .apply { if (type == ProductType.SUBSCRIPTION && includeSuspended) includeSuspendedSubscriptions(true) }
             .build()
-        return suspendCancellableCoroutine { continuation ->
+        return awaitPlay("Purchases query") { continuation ->
             client.queryPurchasesAsync(params) { result, purchases ->
                 val value = if (result.responseCode == BillingResponseCode.OK) {
                     GatewayResult.Success(purchases.orEmpty().map { it.toInfo(type) })
@@ -134,7 +136,7 @@ internal class PlayBillingGateway(
 
     override suspend fun acknowledge(purchaseToken: String): GatewayResult<Unit> {
         val params = AcknowledgePurchaseParams.newBuilder().setPurchaseToken(purchaseToken).build()
-        return suspendCancellableCoroutine { continuation ->
+        return awaitPlay("Acknowledgement") { continuation ->
             client.acknowledgePurchase(params) { result ->
                 val value = if (result.responseCode == BillingResponseCode.OK) {
                     GatewayResult.Success(Unit)
@@ -199,6 +201,19 @@ internal class PlayBillingGateway(
     override fun endConnection() {
         client.endConnection()
     }
+
+    /**
+     * Suspends until Play invokes the callback. Play normally always answers (with SERVICE_TIMEOUT if needed), but a
+     * missing callback would otherwise keep the caller, and everything queued behind its lock, suspended forever.
+     */
+    private suspend fun <T> awaitPlay(
+        operation: String,
+        call: (CancellableContinuation<GatewayResult<T>>) -> Unit,
+    ): GatewayResult<T> =
+        withTimeoutOrNull(PLAY_CALL_TIMEOUT_MS) { suspendCancellableCoroutine(call) }
+            ?: GatewayResult.Error(
+                BillingError(BillingErrorCode.SERVICE_TIMEOUT, "$operation got no response from Play within ${PLAY_CALL_TIMEOUT_MS / 1000}s"),
+            )
 
     private fun onPurchasesUpdated(result: BillingResult, purchases: List<Purchase>?) {
         val listener = purchasesListener ?: return
@@ -328,4 +343,8 @@ internal class PlayBillingGateway(
     private fun BillingError.withCode(code: BillingErrorCode): BillingError =
         // Keep specific connection / availability codes; replace only the generic ones.
         if (this.code == BillingErrorCode.PLAY_ERROR || this.code == BillingErrorCode.UNKNOWN) copy(code = code) else this
+
+    private companion object {
+        const val PLAY_CALL_TIMEOUT_MS = 60_000L
+    }
 }

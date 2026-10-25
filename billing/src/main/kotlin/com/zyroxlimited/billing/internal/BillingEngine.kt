@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Owns the billing lifecycle: connection, product catalog, purchase flow, on-device validation, acknowledgement
@@ -201,7 +202,23 @@ internal class BillingEngine(
                 )
             }
         }
+        // Without a bound, a setup callback that never arrives would keep every caller (and whatever waits on their
+        // locks) suspended for the lifetime of the process.
+        val completed = withTimeoutOrNull(CONNECTION_TIMEOUT_MS) { waiter.join() } != null
+        if (!completed) onConnectionTimeout(waiter)
         return waiter.await()
+    }
+
+    private fun onConnectionTimeout(waiter: CompletableDeferred<BillingError?>) {
+        synchronized(lock) { if (connectionWaiter === waiter) connectionWaiter = null }
+        val error = BillingError(BillingErrorCode.SERVICE_TIMEOUT, "Play did not finish billing setup within ${CONNECTION_TIMEOUT_MS / 1000}s")
+        // Only the first caller to time out reports it; the others share the same result.
+        if (waiter.complete(error)) {
+            logger.warn(error.message)
+            store.connectionState.value = BillingConnectionState.Disconnected
+            store.emitError(error)
+            scheduleReconnect()
+        }
     }
 
     private suspend fun onConnected() = coroutineScope {
@@ -319,6 +336,10 @@ internal class BillingEngine(
         hasAuthoritativeSnapshot = true
         val status = applySnapshotLocked(newSnapshot)
         reportCompletedPendingPurchases(purchases, status)
+        // Tokens Play no longer reports (expired, refunded, replaced) are dropped so these sets stay bounded.
+        val liveTokens = purchases.mapTo(HashSet()) { it.purchaseToken }
+        processedTokens.retainAll(liveTokens)
+        acknowledgedTokens.retainAll(liveTokens)
         scheduleAcknowledgements(newSnapshot)
         store.refreshState.value = PurchasesRefreshState(isRefreshing = false, lastError = null, lastSuccessAtMillis = clock())
         return true
@@ -781,6 +802,7 @@ internal class BillingEngine(
         PurchaseResult.Failure(productId, BillingError(code, message))
 
     private companion object {
+        const val CONNECTION_TIMEOUT_MS = 30_000L
         const val MAX_RECONNECT_ATTEMPTS = 6
         const val INITIAL_RECONNECT_DELAY_MS = 1_000L
         const val MAX_RECONNECT_DELAY_MS = 60_000L
