@@ -1,0 +1,7 @@
+# Public distribution through JitPack (https://jitpack.io); consumers need no credentials:
+#   maven("https://jitpack.io") + implementation("com.github.<owner>:<repo>:<tag>")
+# JitPack builds a tag the first time someone requests it and sets $VERSION to that tag.
+jdk:
+  - openjdk17
+install:
+  - ./gradlew :billing:publishToMavenLocal -PbillingSdkVersion=$VERSION

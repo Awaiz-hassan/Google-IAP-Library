@@ -1,0 +1,19 @@
+[versions]
+agp = "9.4.1"
+kotlin = "2.4.21"
+coroutines = "1.11.0"
+billing = "9.1.0"
+lifecycle = "2.11.0"
+
+# Published coordinates of the SDK (also overridable with -PbillingSdkVersion=...).
+billing-sdk = "1.0.0"
+
+[libraries]
+play-billing = { module = "com.android.billingclient:billing", version.ref = "billing" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }
+
+[plugins]
+# AGP 9 compiles Kotlin itself (built-in Kotlin); the Kotlin plugin below pins the Kotlin Gradle plugin version.
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
