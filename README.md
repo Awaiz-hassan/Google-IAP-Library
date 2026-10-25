@@ -45,7 +45,7 @@ Add the dependency in your app module:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Awaiz-hassan:Google-IAP-Library:v1.0.0")
+    implementation("com.github.Awaiz-hassan:Google-IAP-Library:v1.0.1")
 }
 ```
 
@@ -345,11 +345,11 @@ All validation happens on the device, using the purchase data the Play Billing c
 JitPack builds the library from git tags:
 
 ```bash
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.0.2
+git push origin v1.0.2
 ```
 
-Then open [jitpack.io/#Awaiz-hassan/Google-IAP-Library](https://jitpack.io/#Awaiz-hassan/Google-IAP-Library) and click **Get it** next to the tag to trigger the first build. Apps use `com.github.Awaiz-hassan:Google-IAP-Library:v1.0.1`.
+Then open [jitpack.io/#Awaiz-hassan/Google-IAP-Library](https://jitpack.io/#Awaiz-hassan/Google-IAP-Library) and click **Get it** next to the tag to trigger the first build. Apps use `com.github.Awaiz-hassan:Google-IAP-Library:v1.0.2`.
 
 ## License
 
