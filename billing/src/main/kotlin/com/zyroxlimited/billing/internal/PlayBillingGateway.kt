@@ -54,8 +54,10 @@ internal class PlayBillingGateway(
                 .enablePrepaidPlans()
                 .build(),
         )
-        // Play re-establishes the connection itself when an API is called while disconnected.
-        .enableAutoServiceReconnection()
+        // No enableAutoServiceReconnection(): BillingEngine connects before every call and reconnects with its own
+        // backoff. With both, Play started a second connection while the engine's was still being set up; it failed
+        // ("Client is already in the process of connecting", result 5) and the calls queued behind it, the first
+        // product query among them, waited for Play's own retry delay, long enough on a cold start to fail.
         .build()
 
     override fun startConnection(listener: GatewayConnectionListener) {

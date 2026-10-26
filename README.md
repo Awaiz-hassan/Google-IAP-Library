@@ -45,7 +45,7 @@ Add the dependency in your app module:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Awaiz-hassan:Google-IAP-Library:v1.0.1")
+    implementation("com.github.Awaiz-hassan:Google-IAP-Library:v1.0.2")
 }
 ```
 
